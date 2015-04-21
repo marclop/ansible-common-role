@@ -1,0 +1,4 @@
+---
+# handlers file for common
+- name: restart nrpe
+  action: service enabled=yes state=restarted name=nrpe

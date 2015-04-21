@@ -1,0 +1,80 @@
+---
+# tasks file for common
+
+- name: Install common packages
+  yum: name={{ item }}
+  with_items: packages
+
+- name: Enable and start common services
+  service: name=chronyd enabled=yes state=started
+  with_items: services
+
+- name: Create common users defined in vars main.yml
+  user: name={{ item.key }} shell={{ item.value.shell }} password={{ item.value.shadow }}
+  with_dict: users
+
+- name: Add authorized keys to users 
+  authorized_key: user={{ item.key }} key="{{ lookup('file', item.value.public_key_location) }}"
+  with_dict: users
+  when: item.value.public_key_location is defined
+
+- name: Add users to sudoers and validate sudoers file
+  lineinfile: dest=/etc/sudoers.d/{{ item.key }} line="{{item.key}} ALL=(ALL) ALL" create=yes validate='visudo -cf %s'
+  with_dict: users
+  when: item.value.sudo_user is defined
+
+- name: Add users to sudoers and validate sudoers file
+  lineinfile: dest=/etc/sudoers.d/{{ item.key }} line="{{item.key}} ALL=(ALL) NOPASSWD:ALL" create=yes validate='visudo -cf %s'
+  with_dict: users
+  when: item.value.sudo_nopasswd is defined
+
+- name: Check SELinux status
+  command: getenforce
+  register: selinux_status
+
+- name: Set SELinux configuration
+  selinux: policy={{ selinux_policy }} state={{ selinux_state }}
+  when: selinux_policy is defined and selinux_state is defined and selinux_status != "Disabled"
+
+- name: Set SELinux mode
+  command: setenforce {{ selinux_state }}
+  when: selinux_status == "Enforcing"
+
+- name: Check NRPE hosts
+  command: bash -c 'grep allowed_hosts={{ nrpe_allowed_hosts }} {{ nrpe_conf_path }}'
+  register: nrpe_status  
+
+- name: Replace NRPE allowed_hosts
+  replace: dest={{ nrpe_conf_path }} regexp='^allowed_hosts=.*' replace=allowed_hosts={{ nrpe_allowed_hosts }}
+  when: nrpe_status|failed
+  notify: 
+    - restart nrpe
+
+- name: Replace NRPE blame_nrpe
+  replace: dest={{ nrpe_conf_path }} regexp='dont_blame_nrpe=0' replace=dont_blame_nrpe={{ nrpe_blame }}
+  notify:
+    - restart nrpe
+
+- name: Check Include Dir location
+  command: bash -c 'grep include_dir={{ nrpe_include_dir}} {{ nrpe_conf_path }}'
+  register: nrpe_include_status
+
+- name: Replace NRPE include directory 
+  replace: dest={{ nrpe_conf_path }} regexp='^include_dir=.*' replace=include_dir={{ nrpe_include_dir }} 
+  when: nrpe_include_status == "include_dir={{nrpe_include_dir}}"
+  notify:
+    - restart nrpe
+
+- name: Copy NRPE commands
+  template: src=nrpe-generic.cfg.j2 dest=/etc/nrpe.d/generic.cfg
+  notify:
+    - restart nrpe
+
+- name: Copy NRPE plugins (64-bit)
+  copy: src=plugins/ dest=/usr/lib64/nagios/plugins/ mode=655 
+  when: ansible_architecture == "x86_64"
+
+- name: Copy NRPE plugins (32-bit)
+  copy: src=plugins/ dest=/usr/lib64/nagios/plugins/ mode=655
+  when: ansible_architecture != "x86_64"
+

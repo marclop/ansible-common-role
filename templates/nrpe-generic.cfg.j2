@@ -1,0 +1,44 @@
+{% if ansible_architecture == "x86_64" %}
+{% set nrpe_libarch = "lib64"%} 
+{% else %}
+{% set nrpe_libarch = "lib" %}
+{% endif %}
+# Disk, Load
+command[check_load]=/usr/{{ nrpe_libarch }}/nagios/plugins/check_load -w 5,4,4 -c 7,5,5
+command[check_disk]=/usr/{{ nrpe_libarch }}/nagios/plugins/check_disk -w 10% -c 5% -p / /var
+
+# Procs
+command[check_zombie_procs]=/usr/{{ nrpe_libarch }}/nagios/plugins/check_procs -w 5 -c 10 -s Z
+command[check_total_procs]=/usr/{{ nrpe_libarch }}/nagios/plugins/check_procs -w 200 -c 250
+
+# Memmory
+command[check_mem]=/usr/{{ nrpe_libarch }}/nagios/plugins/check_mem.sh -w 88 -c 90
+command[check_mem_args]=/usr/{{ nrpe_libarch }}/nagios/plugins/check_mem.sh -w $ARG1$ -c $ARG2$
+
+# Postfix
+command[check_queue]=/usr/{{ nrpe_libarch }}/nagios/plugins/check_postfix_queue -w $ARG1$ -c $ARG2$
+command[check_postfix_queue]=/usr/{{ nrpe_libarch }}/nagios/plugins/check_postfix_queue -w 150 -c 200
+
+# Check if logstash-forwarder is running on the machine
+command[check_logstash-forwarder]=/usr/{{ nrpe_libarch }}/nagios/plugins/check_procs -a logstash-forwarder -w 1:
+
+# Elasticsearch
+command[check_es]=/usr/{{ nrpe_libarch }}/nagios/plugins/check-es -x heap_used_percent -w 85 -c 90
+command[check_es_args]=/usr/{{ nrpe_libarch }}/nagios/plugins/check-es -x heap_used_percent -w $ARG1$ -c $ARG2$
+
+# Logstash
+command[check_logstash]=/usr/{{ nrpe_libarch }}/nagios/plugins/check-logstash -x heap_used_percent -w 80 -c 90
+command[check_logstash_args]=/usr/{{ nrpe_libarch }}/nagios/plugins/check-logstash -x heap_used_percent -w $ARG1$ -c $ARG2$
+
+# Mountpoints from /etc/fstab
+command[check_mountpoints]=/usr/{{ nrpe_libarch }}/nagios/plugins/check_mountpoints.sh -a
+
+# Check samba running status
+command[check_smb]=/usr/{{ nrpe_libarch }}/nagios/plugins/check_smb_status.sh
+
+# Remove full postfix queue
+command[clean_postfix_queue]=/usr/{{ nrpe_libarch }}/nagios/plugins/clean_queue.sh
+
+# Check Apache status
+command[check_apache_status]=/usr/{{ nrpe_libarch }}/nagios/plugins/check_apachestatus.pl -H 127.0.0.1 $ARG1$
+
